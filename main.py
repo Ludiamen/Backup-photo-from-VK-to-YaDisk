@@ -46,10 +46,10 @@ class VkRequest:
         """Метод для получения количества фотографий и массива фотографий"""
         url = 'https://api.vk.com/method/photos.get'
         params = {'owner_id': self.id,
-                  'album_id': 'profile',
+                  'album_id': 'wall',
                   'photo_sizes': 1,
                   'extended': 1,
-                  'rev': 0
+                  'rev': 1
                   }
         photo_info = requests.get(url, params={**self.start_params, **params}).json()['response']
         return photo_info['count'], photo_info['items']
@@ -63,7 +63,8 @@ class VkRequest:
             url_download, picture_size = find_max_dpi(photo_items[i]['sizes'])
             time_warp = time_convert(photo_items[i]['date'])
             new_value = result.get(likes_count, [])
-            new_value.append({'add_name': time_warp,
+            new_value.append({'likes_count': likes_count,
+                              'add_name': time_warp,
                               'url_picture': url_download,
                               'size': picture_size})
             result[likes_count] = new_value
@@ -78,19 +79,23 @@ class VkRequest:
         for elem in picture_dict.keys():
             for value in picture_dict[elem]:
                 if len(picture_dict[elem]) == 1:
-                    file_name = f'{elem}.jpeg'
+                    file_name = f'{value["likes_count"]}.jpeg'
                 else:
-                    file_name = f'{elem} {value["add_name"]}.jpeg'
+                    file_name = f'{value["likes_count"]} {value["add_name"]}.jpeg'
                 json_list.append({'file name': file_name, 'size': value["size"]})
-                sorted_dict[file_name] = picture_dict[elem][counter]['url_picture']
-                counter += 1
+                if value["likes_count"] == 0:
+                    sorted_dict[file_name] = picture_dict[elem][counter]['url_picture']
+                    counter += 1
+                else:
+                    sorted_dict[file_name] = picture_dict[elem][0]['url_picture']
         return json_list, sorted_dict
 
 
 class Yandex:
-    def __init__(self, folder_name, token_list):
+    def __init__(self, folder_name, token_list, num=5):
         """Метод для получения основных параметров для загрузки фотографий на Я-диск"""
         self.token = token_list[0]
+        self.added_files_num = num
         self.url = "https://cloud-api.yandex.net/v1/disk/resources/upload"
         self.headers = {'Authorization': self.token}
         self.folder = self._create_folder(folder_name)
@@ -119,35 +124,36 @@ class Yandex:
     def create_copy(self, dict_files):
         """Метод загрузки фотографий на Я-диск"""
         files_in_folder = self._in_folder(self.folder)
-        added_files_num = 0
-        for key, i in zip(dict_files.keys(), tqdm(list(dict_files.keys()))):
-            if added_files_num < 5:
+        copy_counter = 0
+        for key, i in zip(dict_files.keys(), tqdm(range(self.added_files_num))):
+            # print(list(dict_files.keys()))
+            # print(i)
+            if copy_counter < self.added_files_num:
                 if key not in files_in_folder:
                     params = {'path': f'{self.folder}/{key}',
                               'url': dict_files[key],
                               'overwrite': 'false'}
                     requests.post(self.url, headers=self.headers, params=params)
-                    added_files_num += 1
+                    copy_counter += 1
                 else:
                     print(f'Внимание:Файл {key} уже существует')
             else:
                 break
-        print(f'\nЗапрос завершен, новых файлов скопировано (не более 5 за раз): {added_files_num}'
+
+        print(f'\nЗапрос завершен, новых файлов скопировано (по умолчанию: 5): {copy_counter}'
               f'\nВсего файлов в исходном альбоме VK: {len(dict_files)}')
 
 
 if __name__ == '__main__':
 
-    tokenVK = 'VK_TOKEN.txt'  # токен и id доступа хранятся в файле (построчно)
-    tokenYandex = 'Ya_TOKEN.txt'  # хранится только токен яндекс диска
+    tokenVK = 'VK_TOKEN_my.txt'  # токен и id доступа хранятся в файле (построчно)
+    tokenYandex = 'Ya_TOKEN_my.txt'  # хранится только токен яндекс диска
 
     my_VK = VkRequest(get_token_id(tokenVK))  # Получение JSON списка с информацией о фотографииях
 
     with open('my_VK_photo.json', 'w') as outfile:  # Сохранение JSON списка ф файл my_VK_photo.json
         json.dump(my_VK.json, outfile)
 
-    # Создаем экземпляр класса Yandex с параметрами: "Имя папки" и "Токен"
-    my_yandex = Yandex('VK photo copies', get_token_id(tokenYandex))
+    # Создаем экземпляр класса Yandex с параметрами: "Имя папки", "Токен" и количество скачиваемых файлов
+    my_yandex = Yandex('VK photo copies', get_token_id(tokenYandex), 5)
     my_yandex.create_copy(my_VK.export_dict)  # Вызываем метод create_copy для копирования фотографий с VK на Я-диск
-
-
