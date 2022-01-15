@@ -46,7 +46,7 @@ class VkRequest:
         """Метод для получения количества фотографий и массива фотографий"""
         url = 'https://api.vk.com/method/photos.get'
         params = {'owner_id': self.id,
-                  'album_id': 'wall',
+                  'album_id': 'profile',
                   'photo_sizes': 1,
                   'extended': 1,
                   'rev': 1
@@ -126,8 +126,6 @@ class Yandex:
         files_in_folder = self._in_folder(self.folder)
         copy_counter = 0
         for key, i in zip(dict_files.keys(), tqdm(range(self.added_files_num))):
-            # print(list(dict_files.keys()))
-            # print(i)
             if copy_counter < self.added_files_num:
                 if key not in files_in_folder:
                     params = {'path': f'{self.folder}/{key}',
